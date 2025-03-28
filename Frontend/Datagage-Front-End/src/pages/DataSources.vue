@@ -44,6 +44,16 @@ onMounted(fetchSources);
 const createNewSource = () => {
   router.push("/sources/new");
 };
+
+const getSourceIcon = (sourceType) => {
+  const icons = {
+    "google-sheets": "mdi-google-spreadsheet",
+    file: "mdi-file-delimited",
+    mysql: "mdi-database",
+    postgres: "mdi-database-outline"
+  };
+  return icons[sourceType] || "mdi-database-outline";
+};
 </script>
 
 <template>
@@ -113,7 +123,7 @@ const createNewSource = () => {
                   size="48"
                   class="source-icon"
                 >
-                  <v-icon size="24">mdi-database-outline</v-icon>
+                  <v-icon size="24">{{ getSourceIcon(source.sourceType) }}</v-icon>
                 </v-avatar>
               </template>
               <v-card-title class="text-truncate">{{

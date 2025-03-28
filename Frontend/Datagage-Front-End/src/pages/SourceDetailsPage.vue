@@ -168,14 +168,12 @@ const SOURCE_ICONS = {
   "google-sheets": "mdi-google-spreadsheet",
   file: "mdi-file-delimited",
   mysql: "mdi-database",
-  postgres: "mdi-database-outline",
-  salesforce: "mdi-salesforce",
+  postgres: "mdi-database-outline"
 };
 
 // Safe getter function for source icon
 const getSourceIconSafe = () => {
   const sourceType = source.value?.sourceType;
-  console.log("Source type for icon:", sourceType);
   return sourceType && SOURCE_ICONS[sourceType]
     ? SOURCE_ICONS[sourceType]
     : "mdi-database-outline";
@@ -189,24 +187,21 @@ const formatKey = (key) => {
     .replace(/^\w/, (c) => c.toUpperCase());
 };
 
-// Fetch source details with enhanced debugging
+// Fetch source details
 const fetchSource = async () => {
   loading.value = true;
   error.value = null;
 
   try {
-    console.log("Fetching source details for ID:", sourceId.value);
     const response = await sourceService.getSourceDetails(sourceId.value);
-    console.log("Source details response:", response);
     source.value = response;
 
     // Check if sourceType exists
-    if (!source.value.sourceType) {
-      console.warn("Source type is missing in the API response");
+    if (!source.value.sourceType && source.value.connectionConfiguration?.sourceType) {
+      source.value.sourceType = source.value.connectionConfiguration.sourceType;
     }
   } catch (err) {
     error.value = "Failed to load source details";
-    console.error("Error fetching source details:", err);
   } finally {
     loading.value = false;
   }
@@ -218,7 +213,8 @@ const syncSource = async () => {
   try {
     await sourceService.syncSource(sourceId.value, source.value.name);
   } catch (err) {
-    console.error(err);
+    error.value = "Failed to sync source"; 
+    notify.error("Failed to sync source: " + (err.message || "Unknown error"));
   } finally {
     syncing.value = false;
   }
@@ -240,7 +236,9 @@ const deleteSource = async () => {
     deleteDialog.value = false;
     router.push("/sources");
   } catch (err) {
-    console.error(err);
+    error.value = "Failed to delete source";
+    notify.error("Failed to delete source: " + (err.message || "Unknown error"));
+    deleteDialog.value = false;
   } finally {
     deleting.value = false;
   }

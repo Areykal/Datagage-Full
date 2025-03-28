@@ -19,7 +19,10 @@
 
 <script setup>
 import { computed, watch } from "vue";
-import { notificationStore } from "@/stores/notification";
+import { useNotificationStore } from "@/stores/notificationStore";
+
+// Initialize the store
+const notificationStore = useNotificationStore();
 
 // Map notification types to Vuetify colors
 const typeToColor = {

@@ -11,6 +11,25 @@ const DEFAULT_OPTIONS = {
   closable: true,
 };
 
+// Import for the store - will be used with a getter function
+import { useNotificationStore } from "@/stores/notificationStore";
+
+// Debug flag - set to false in production
+const DEBUG = false;
+
+// Create a getter function that will only be called when Pinia is ready
+let _store = null;
+const getStore = () => {
+  if (!_store) {
+    try {
+      _store = useNotificationStore();
+    } catch (error) {
+      console.warn("Notification store not available yet, will retry later");
+    }
+  }
+  return _store;
+};
+
 /**
  * Creates and shows a notification
  */
@@ -130,12 +149,6 @@ function removeNotification(element) {
   }
 }
 
-// Public API
-import { notificationStore } from "@/stores/notification";
-
-// Debug flag - set to true to see notification calls in console
-const DEBUG = true;
-
 /**
  * Utilities for displaying notifications
  */
@@ -146,52 +159,77 @@ export const notify = {
    * @param {string} type - Type of notification: 'success', 'error', 'info', 'warning'
    * @param {number} duration - How long to show the notification in ms
    */
-  show(message, type = "info", duration = 5000) {
+  show(message, type = "info", duration = 5000, position = DEFAULT_OPTIONS.position, title = "") {
     if (DEBUG) console.log(`[NOTIFICATION] ${type}: ${message}`);
-    notificationStore.show(message, type, duration);
+    
+    // Try to use the store if available
+    const store = getStore();
+    if (store) {
+      store.add({
+        message,
+        type,
+        duration,
+        position,
+        title
+      });
+    } else {
+      // Fallback to simple notification if store not available
+      showNotification(message, type, { duration, position, title });
+    }
   },
 
   /**
    * Show a success notification
    * @param {string} message - Message to display
-   * @param {number} duration - How long to show the notification in ms
+   * @param {Object|number} options - Options or duration in ms
    */
-  success(message, duration = 5000) {
-    this.show(message, "success", duration);
+  success(message, options = {}) {
+    if (typeof options === 'number') {
+      options = { duration: options };
+    }
+    this.show(message, "success", options.duration, options.position, options.title);
   },
 
   /**
    * Show an error notification
    * @param {string} message - Message to display
-   * @param {number} duration - How long to show the notification in ms
+   * @param {Object|number} options - Options or duration in ms
    */
-  error(message, duration = 5000) {
-    this.show(message, "error", duration);
+  error(message, options = {}) {
+    if (typeof options === 'number') {
+      options = { duration: options };
+    }
+    this.show(message, "error", options.duration, options.position, options.title);
   },
 
   /**
    * Show an info notification
    * @param {string} message - Message to display
-   * @param {number} duration - How long to show the notification in ms
+   * @param {Object|number} options - Options or duration in ms
    */
-  info(message, duration = 5000) {
-    this.show(message, "info", duration);
+  info(message, options = {}) {
+    if (typeof options === 'number') {
+      options = { duration: options };
+    }
+    this.show(message, "info", options.duration, options.position, options.title);
   },
 
   /**
    * Show a warning notification
    * @param {string} message - Message to display
-   * @param {number} duration - How long to show the notification in ms
+   * @param {Object|number} options - Options or duration in ms
    */
-  warning(message, duration = 5000) {
-    this.show(message, "warning", duration);
+  warning(message, options = {}) {
+    if (typeof options === 'number') {
+      options = { duration: options };
+    }
+    this.show(message, "warning", options.duration, options.position, options.title);
   },
 };
 
-// For debugging - log the notification store status
+// For debugging - log the notification system status
 if (DEBUG) {
   console.log("[NOTIFICATION] Notification utility loaded");
-  console.log("[NOTIFICATION] Store object:", notificationStore);
 }
 
 export default notify;

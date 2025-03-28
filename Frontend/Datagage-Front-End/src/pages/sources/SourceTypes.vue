@@ -87,8 +87,7 @@ const getSourceIcon = (type) => {
     "google-sheets": "mdi-google-spreadsheet",
     file: "mdi-file-delimited",
     mysql: "mdi-database",
-    postgres: "mdi-database",
-    salesforce: "mdi-cloud",
+    postgres: "mdi-database"
   };
   return icons[type] || "mdi-database";
 };

@@ -1,10 +1,23 @@
 import { airbyteService } from "./airbyteService";
-import { notificationStore } from "@/stores/notification";
+import { useNotificationStore } from "@/stores/notificationStore";
 import { notify } from "@/utils/notifications";
 import { apiClient } from "./apiClient";
 
-// Debug flag - set to true to log service operations
-const DEBUG = true;
+// Debug flag - set to false in production
+const DEBUG = false;
+
+// Create a getter function that will only be called when Pinia is ready
+let _store = null;
+const getNotificationStore = () => {
+  if (!_store) {
+    try {
+      _store = useNotificationStore();
+    } catch (error) {
+      console.warn("Notification store not available yet in sourceService");
+    }
+  }
+  return _store;
+};
 
 /**
  * Centralized service for managing data sources
@@ -22,8 +35,14 @@ export const sourceService = {
     } catch (error) {
       if (DEBUG)
         console.error("[SOURCE SERVICE] Error getting sources:", error);
-      // Use both notification methods for redundancy during debugging
-      notificationStore.error("Failed to load sources");
+      // Use notification methods for error handling
+      const store = getNotificationStore();
+      if (store) {
+        store.add({ 
+          type: 'error',
+          message: "Failed to load sources" 
+        });
+      }
       notify.error("Failed to load sources");
       throw error;
     }
@@ -35,26 +54,20 @@ export const sourceService = {
    * @returns {Promise<Object>} Source details
    */
   async getSourceDetails(sourceId) {
-    console.log("Fetching source details for ID:", sourceId);
+    if (DEBUG) console.log("[SOURCE SERVICE] Getting source details:", sourceId);
     try {
       const response = await apiClient.get(`/api/airbyte/sources/${sourceId}`);
-      console.log("Source details response:", response.data);
-
+      
       // Ensure sourceType exists
-      if (!response.data.sourceType) {
-        console.warn(
-          "sourceType is missing in response, checking if source type is available elsewhere"
-        );
-        // If sourceType is missing but connectionConfiguration.sourceType exists
-        if (response.data.connectionConfiguration?.sourceType) {
-          response.data.sourceType =
-            response.data.connectionConfiguration.sourceType;
-        }
+      if (!response.data.sourceType && response.data.connectionConfiguration?.sourceType) {
+        response.data.sourceType = response.data.connectionConfiguration.sourceType;
+        if (DEBUG) console.log("[SOURCE SERVICE] Set sourceType from connectionConfiguration");
       }
 
       return response.data;
     } catch (error) {
-      console.error("Error in getSourceDetails:", error);
+      if (DEBUG) console.error("[SOURCE SERVICE] Error getting source details:", error);
+      notify.error("Failed to load source details");
       throw error;
     }
   },
