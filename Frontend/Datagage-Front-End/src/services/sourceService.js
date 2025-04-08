@@ -30,8 +30,17 @@ export const sourceService = {
   async getSources() {
     if (DEBUG) console.log("[SOURCE SERVICE] Getting sources");
     try {
-      const sources = await airbyteService.getSources();
-      return sources;
+      const response = await airbyteService.getSources();
+      
+      // Handle both possible response formats
+      if (response && response.data) {
+        return response.data;
+      } else if (Array.isArray(response)) {
+        return response;
+      } else {
+        console.warn("[SOURCE SERVICE] Unexpected sources response format:", response);
+        return [];
+      }
     } catch (error) {
       if (DEBUG)
         console.error("[SOURCE SERVICE] Error getting sources:", error);

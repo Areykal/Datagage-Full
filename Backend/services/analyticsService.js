@@ -41,47 +41,85 @@ class AnalyticsService {
       throw new Error("Database connection failed: " + error.message);
     }
   }
+  // First, inspect the schema to confirm table structure
+  async inspectTableSchema() {
+    try {
+      console.log("Inspecting sales table schema...");
+      
+      // Query to get column names and types
+      const schemaQuery = `
+        SELECT column_name, data_type 
+        FROM information_schema.columns 
+        WHERE table_name = 'sales'
+      `;
+      
+      const result = await this.pool.query(schemaQuery);
+      console.log("Table schema:", result.rows);
+      return result.rows;
+    } catch (error) {
+      console.error("Schema inspection error:", error);
+      return [];
+    }
+  }
 
   async getSalesData(months = 12, product = "all", customer = "all") {
+    console.log(`Fetching sales data: months=${months}, product=${product}, customer=${customer}`);
+    
+    // Clear cache to ensure we're getting fresh data during troubleshooting
     const cacheKey = `sales_data_${months}_${product}_${customer}`;
-    const cachedData = this.cache.get(cacheKey);
-    if (cachedData) return cachedData;
-
-    // Updated SQL query to match the actual sales table schema
-    let queryText = `
-      SELECT 
-        DATE_TRUNC('month', sale_date)::date as month,
-        product,
-        COUNT(*) as total_orders,
-        SUM(quantity) as items_sold,
-        SUM(total)::numeric(10,2) as total_revenue,
-        COUNT(DISTINCT customer_name) as unique_customers,
-        ROUND(AVG(total)::numeric, 2) as avg_order_value
-      FROM sales
-      WHERE sale_date >= NOW() - INTERVAL '${months} months'
-    `;
-
-    // Dynamic parameters for filtering
-    const queryParams = [];
-    let paramPosition = 1;
-
-    if (product !== "all") {
-      queryText += ` AND product = $${paramPosition++}`;
-      queryParams.push(product);
-    }
-    if (customer !== "all") {
-      queryText += ` AND customer_name = $${paramPosition}`;
-      queryParams.push(customer);
-    }
-
-    queryText += ` GROUP BY 1, 2 ORDER BY 1 DESC, 2`;
-
+    this.cache.del(cacheKey);
+    
     try {
+      // Inspect schema first to debug column names
+      await this.inspectTableSchema();
+      
+      // More flexible query that checks for various possible column names
+      let queryText = `
+        SELECT 
+          DATE_TRUNC('month', COALESCE(sale_date, order_date, transaction_date, date))::date as month,
+          COALESCE(product_name, product, item) as product,
+          COUNT(*) as total_orders,
+          SUM(COALESCE(quantity, qty, items, 1)) as items_sold,
+          SUM(COALESCE(total, amount, revenue, price))::numeric(10,2) as total_revenue,
+          COUNT(DISTINCT COALESCE(customer_name, customer, client)) as unique_customers,
+          ROUND(AVG(COALESCE(total, amount, revenue, price))::numeric, 2) as avg_order_value
+        FROM sales
+        WHERE COALESCE(sale_date, order_date, transaction_date, date) >= NOW() - INTERVAL '${months} months'
+      `;
+
+      // Dynamic parameters for filtering
+      const queryParams = [];
+      let paramPosition = 1;
+
+      if (product !== "all") {
+        queryText += ` AND COALESCE(product_name, product, item) = $${paramPosition++}`;
+        queryParams.push(product);
+      }
+      
+      if (customer !== "all") {
+        queryText += ` AND COALESCE(customer_name, customer, client) = $${paramPosition}`;
+        queryParams.push(customer);
+      }
+
+      queryText += ` GROUP BY 1, 2 ORDER BY 1 DESC, 2`;
+
+      console.log("Executing query:", queryText);
+      console.log("With parameters:", queryParams);
+      
       const result = await this.pool.query(queryText, queryParams);
+      console.log(`Query returned ${result.rows.length} rows`);
+      
+      if (result.rows.length === 0) {
+        console.log("No data returned. This could indicate a schema mismatch.");
+      } else {
+        console.log("Sample row:", result.rows[0]);
+      }
+      
       this.cache.set(cacheKey, result.rows);
       return result.rows;
     } catch (error) {
       console.error("Database error:", error);
+      console.error("Error details:", error.detail || "No additional details");
       throw error;
     }
   }

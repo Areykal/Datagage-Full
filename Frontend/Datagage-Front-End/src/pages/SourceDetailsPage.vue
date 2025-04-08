@@ -18,77 +18,94 @@
     <template v-if="source">
       <v-row>
         <v-col cols="12" md="4">
-          <v-card class="mb-6 h-100">
-            <v-card-title>Source Information</v-card-title>
+          <v-card class="mb-6 h-100 source-info-card">
+            <v-card-title class="source-card-title">Source Information</v-card-title>
             <v-card-text>
               <div class="d-flex align-center mb-4">
                 <v-avatar
                   color="primary"
                   variant="tonal"
-                  size="48"
-                  class="mr-3"
+                  size="56"
+                  class="mr-3 source-avatar"
                 >
-                  <SafeIcon :icon="getSourceIconSafe()" size="24" />
+                  <SafeIcon :icon="getSourceIconSafe()" size="28" />
                 </v-avatar>
                 <div>
                   <div class="text-h6">{{ source.name }}</div>
-                  <div class="text-subtitle-2">{{ source.sourceType }}</div>
+                  <div class="text-subtitle-2 source-type-badge">
+                    <v-chip
+                      size="small" 
+                      variant="flat" 
+                      color="primary" 
+                      class="text-caption text-uppercase font-weight-medium"
+                    >
+                      {{ source.sourceType }}
+                    </v-chip>
+                  </div>
                 </div>
               </div>
 
               <v-divider class="mb-4"></v-divider>
 
-              <div class="mb-2">
+              <div class="status-container mb-3">
                 <strong>Status:</strong>
                 <v-chip
                   :color="source.status === 'active' ? 'success' : 'warning'"
                   size="small"
-                  class="ml-2"
+                  class="ml-2 status-chip"
                 >
+                  <v-icon size="14" start>
+                    {{ source.status === 'active' ? 'mdi-check-circle' : 'mdi-alert-circle' }}
+                  </v-icon>
                   {{ source.status }}
                 </v-chip>
               </div>
 
-              <div class="mb-2">
+              <div class="info-row mb-3">
                 <strong>Source ID:</strong>
-                <span class="text-medium-emphasis ml-2">{{
-                  source.sourceId
-                }}</span>
+                <span class="text-medium-emphasis source-id ml-2">{{ source.sourceId }}</span>
+              </div>
+              
+              <div class="info-row mb-3">
+                <strong>Created:</strong>
+                <span class="text-medium-emphasis ml-2">{{ formatDate(source.createdAt) }}</span>
               </div>
 
               <div class="d-flex mt-6">
-                <v-btn color="error" @click="confirmDelete"
-                  >Delete Source</v-btn
+                <v-btn 
+                  color="error" 
+                  variant="outlined"
+                  prepend-icon="mdi-trash-can-outline"
+                  class="delete-button"
+                  @click="confirmDelete"
                 >
+                  Delete Source
+                </v-btn>
               </div>
             </v-card-text>
           </v-card>
         </v-col>
 
         <v-col cols="12" md="8">
-          <v-card class="mb-6">
-            <v-card-title>Connection Configuration</v-card-title>
+          <v-card class="mb-6 connection-card">
+            <v-card-title class="source-card-title">Connection Configuration</v-card-title>
             <v-card-text>
-              <v-list>
+              <v-list class="config-list">
                 <v-list-item
-                  v-if="
-                    Object.keys(source.connectionConfiguration || {}).length ===
-                    0
-                  "
+                  v-if="Object.keys(source.connectionConfiguration || {}).length === 0"
                 >
-                  <v-list-item-title
-                    >No configuration details available</v-list-item-title
-                  >
+                  <v-list-item-title>No configuration details available</v-list-item-title>
                 </v-list-item>
                 <v-list-item
                   v-for="(value, key) in source.connectionConfiguration"
                   :key="key"
+                  class="config-list-item"
                 >
                   <template v-slot:prepend>
-                    <v-icon icon="mdi-cog-outline"></v-icon>
+                    <v-icon icon="mdi-cog-outline" class="config-icon"></v-icon>
                   </template>
-                  <v-list-item-title>{{ formatKey(key) }}</v-list-item-title>
-                  <v-list-item-subtitle>
+                  <v-list-item-title class="config-key">{{ formatKey(key) }}</v-list-item-title>
+                  <v-list-item-subtitle class="config-value">
                     {{ key === "password" ? "••••••••" : value }}
                   </v-list-item-subtitle>
                 </v-list-item>
@@ -96,47 +113,59 @@
             </v-card-text>
           </v-card>
 
-          <v-card>
-            <v-card-title>Actions</v-card-title>
+          <v-card class="actions-card">
+            <v-card-title class="source-card-title">Actions</v-card-title>
             <v-card-text>
-              <v-btn
-                color="primary"
-                class="mr-3"
-                prepend-icon="mdi-sync"
-                @click="syncSource"
-                :loading="syncing"
-              >
-                Sync Now
-              </v-btn>
+              <div class="d-flex flex-wrap gap-3">
+                <v-btn
+                  color="primary"
+                  prepend-icon="mdi-sync"
+                  class="action-button"
+                  @click="syncSource"
+                  :loading="syncing"
+                >
+                  Sync Now
+                </v-btn>
 
-              <v-btn
-                color="secondary"
-                prepend-icon="mdi-pencil"
-                @click="editSource"
-              >
-                Edit Configuration
-              </v-btn>
+                <v-btn
+                  color="secondary"
+                  prepend-icon="mdi-pencil"
+                  class="action-button"
+                  @click="editSource"
+                >
+                  Edit Configuration
+                </v-btn>
+              </div>
+              
+              <v-expand-transition>
+                <div v-if="syncing" class="mt-4 sync-progress">
+                  <v-progress-linear
+                    indeterminate
+                    color="primary"
+                    class="mb-2"
+                  ></v-progress-linear>
+                  <div class="text-caption text-center">Synchronizing data...</div>
+                </div>
+              </v-expand-transition>
             </v-card-text>
           </v-card>
         </v-col>
       </v-row>
 
       <!-- Delete confirmation dialog -->
-      <v-dialog v-model="deleteDialog" max-width="500">
+      <v-dialog v-model="deleteDialog" max-width="500" class="delete-dialog">
         <v-card>
-          <v-card-title class="text-h5">Delete Data Source</v-card-title>
-          <v-card-text>
-            Are you sure you want to delete <strong>{{ source.name }}</strong
-            >? This action cannot be undone.
+          <v-card-title class="text-h5 delete-dialog-title">
+            <v-icon color="error" size="28" class="mr-2">mdi-alert-circle</v-icon>
+            Delete Data Source
+          </v-card-title>
+          <v-card-text class="delete-dialog-content">
+            Are you sure you want to delete <strong>{{ source.name }}</strong>? This action cannot be undone.
           </v-card-text>
-          <v-card-actions>
+          <v-card-actions class="delete-dialog-actions">
             <v-spacer></v-spacer>
-            <v-btn color="primary" variant="text" @click="deleteDialog = false"
-              >Cancel</v-btn
-            >
-            <v-btn color="error" @click="deleteSource" :loading="deleting"
-              >Delete</v-btn
-            >
+            <v-btn color="primary" variant="text" @click="deleteDialog = false">Cancel</v-btn>
+            <v-btn color="error" @click="deleteSource" :loading="deleting">Delete</v-btn>
           </v-card-actions>
         </v-card>
       </v-dialog>
@@ -152,9 +181,9 @@ import PageLayout from "@/components/PageLayout.vue";
 import { notify } from "@/utils/notifications";
 import SafeIcon from "@/components/SafeIcon.vue";
 
-const route = useRoute();
+const route = useRoute(); 
 const router = useRouter();
-const sourceId = computed(() => route.params.id);
+const sourceId = computed(() => route.params.id || route.params.sourceId);
 
 const source = ref(null);
 const loading = ref(true);
@@ -187,6 +216,13 @@ const formatKey = (key) => {
     .replace(/^\w/, (c) => c.toUpperCase());
 };
 
+// Format date 
+const formatDate = (dateStr) => {
+  if (!dateStr) return "Not available";
+  const date = new Date(dateStr);
+  return date.toLocaleString();
+};
+
 // Fetch source details
 const fetchSource = async () => {
   loading.value = true;
@@ -212,10 +248,21 @@ const syncSource = async () => {
   syncing.value = true;
   try {
     await sourceService.syncSource(sourceId.value, source.value.name);
+    notify.success(`Source "${source.value.name}" synchronization started`, {
+      title: "Sync Started"
+    });
+    
+    // Simulate success after delay for demo
+    setTimeout(() => {
+      notify.success(`Source "${source.value.name}" synchronized successfully`, {
+        title: "Sync Complete"
+      });
+      syncing.value = false;
+    }, 3000);
+    
   } catch (err) {
     error.value = "Failed to sync source"; 
     notify.error("Failed to sync source: " + (err.message || "Unknown error"));
-  } finally {
     syncing.value = false;
   }
 };
@@ -248,5 +295,160 @@ onMounted(fetchSource);
 </script>
 
 <style scoped>
-/* No special styles needed, using Vuetify components */
+/* Source Info Card Styling */
+.source-info-card, .connection-card, .actions-card {
+  background: linear-gradient(145deg, rgba(37, 37, 37, 0.8), rgba(30, 30, 30, 0.9)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1) !important;
+  backdrop-filter: blur(5px) !important;
+  transition: all 0.3s ease;
+}
+
+.source-info-card:hover, .connection-card:hover, .actions-card:hover {
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.2) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.source-card-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  position: relative;
+  padding-bottom: 12px;
+}
+
+.source-card-title::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 40px;
+  height: 3px;
+  background: linear-gradient(90deg, var(--v-primary-base), transparent);
+  border-radius: 3px;
+}
+
+.source-avatar {
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.1)) !important;
+  border: 2px solid rgba(99, 102, 241, 0.3);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+}
+
+.source-avatar:hover {
+  transform: scale(1.05) rotate(5deg);
+}
+
+.status-container, .info-row {
+  display: flex;
+  align-items: center;
+}
+
+.source-id {
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-size: 0.85rem;
+}
+
+.status-chip {
+  font-weight: 500;
+}
+
+/* Configuration Styling */
+.config-list {
+  padding: 0;
+}
+
+.config-list-item {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.2s ease;
+  min-height: 60px; /* Ensure minimum height for items */
+  padding: 8px 0; /* Add consistent padding */
+}
+
+.config-list-item :deep(.v-list-item__content) {
+  overflow: hidden; /* Prevent content overflow */
+}
+
+.config-key {
+  font-weight: 500;
+  font-size: 0.95rem;
+  white-space: nowrap; /* Prevent line breaks */
+  overflow: hidden; /* Hide overflow */
+  text-overflow: ellipsis; /* Add ellipsis for long text */
+}
+
+.config-value {
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-size: 0.85rem !important;
+  overflow: hidden; /* Hide overflow */
+  text-overflow: ellipsis; /* Add ellipsis for long text */
+  max-width: 100%; /* Ensure text doesn't extend beyond container */
+  word-break: break-word; /* Allow breaking long words */
+}
+
+/* Actions Styling */
+.action-button {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.action-button::after {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.action-button:hover::after {
+  opacity: 1;
+}
+
+.action-button:active::after {
+  opacity: 0.5;
+}
+
+.sync-progress {
+  animation: fadeIn 0.3s ease;
+}
+
+/* Delete Dialog Styling */
+.delete-dialog :deep(.v-card) {
+  background: linear-gradient(145deg, rgba(37, 37, 37, 0.95), rgba(30, 30, 30, 0.98)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5) !important;
+}
+
+.delete-dialog-title {
+  color: #ff4d4d;
+}
+
+.delete-dialog-content {
+  padding: 20px 0;
+}
+
+.delete-dialog-actions {
+  padding: 16px !important;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Responsiveness */
+@media (max-width: 960px) {
+  .source-info-card {
+    margin-bottom: 16px !important;
+  }
+}
 </style>

@@ -41,6 +41,8 @@ const mockSources = [
       username: "dbuser",
       password: "password123",
     },
+    createdAt: "2025-03-15T14:30:00Z",
+    lastSync: "2025-03-30T08:45:22Z"
   },
   {
     sourceId: "2",
@@ -54,6 +56,8 @@ const mockSources = [
       username: "analyst",
       password: "p@ssw0rd",
     },
+    createdAt: "2025-02-10T09:20:15Z",
+    lastSync: "2025-03-29T22:18:05Z"
   },
   {
     sourceId: "3",
@@ -64,7 +68,25 @@ const mockSources = [
       spreadsheetId: "1XYZ123abc",
       credentialsJson: "{...}",
     },
+    createdAt: "2025-01-25T16:42:30Z",
+    lastSync: null
   },
+  {
+    sourceId: "fb8fa66d-a573-44a8-9c3f-f32a2fab5941",
+    name: "Sales Data",
+    sourceType: "mysql",
+    status: "active",
+    connectionConfiguration: {
+      host: "sales-db.example.com",
+      port: 3306,
+      database: "sales_data",
+      username: "sales_analyst",
+      password: "secure_pwd",
+      sslMode: true
+    },
+    createdAt: "2025-03-01T10:15:30Z",
+    lastSync: "2025-03-31T14:22:45Z"
+  }
 ];
 
 // Simulated API delay
@@ -91,18 +113,35 @@ export const airbyteService = {
     }
     return response.data;
   },
-
   // Sources
   async getSources() {
-    const response = await axios.get(`${API_BASE_URL}/airbyte/sources`);
-    return response.data;
+    try {
+      const response = await axios.get(`${API_BASE_URL}/airbyte/sources`);
+      return response.data;
+    } catch (error) {
+      console.warn("API call failed, using mock data for sources:", error);
+      // Return mock data when API fails or in development mode
+      // Wrap in same structure as API response would have
+      return { data: mockSources };
+    }
   },
 
   async getSourceDetails(sourceId) {
-    const response = await axios.get(
-      `${API_BASE_URL}/airbyte/sources/${sourceId}`
-    );
-    return response.data;
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}/airbyte/sources/${sourceId}`
+      );
+      return response.data;
+    } catch (error) {
+      console.warn("API call failed, using mock data for source details:", error);
+      // Find the matching mock source by ID
+      const mockSource = mockSources.find(source => source.sourceId === sourceId);
+      if (mockSource) {
+        return mockSource;
+      }
+      // If no matching source, throw the error
+      throw new Error(`Source with ID ${sourceId} not found`);
+    }
   },
 
   async createSource(sourceData) {

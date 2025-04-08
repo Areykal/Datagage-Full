@@ -3,7 +3,6 @@ export const SOURCE_TYPES = {
   CSV: "file",
   MYSQL: "mysql",
   POSTGRESQL: "postgres",
-  SALESFORCE: "salesforce",
 };
 
 export const SOURCE_TYPE_DETAILS = {
@@ -81,33 +80,6 @@ export const SOURCE_TYPE_DETAILS = {
       { name: "password", label: "Password", type: "password", required: true },
     ],
   },
-  [SOURCE_TYPES.SALESFORCE]: {
-    name: "Salesforce",
-    description: "Import data from Salesforce",
-    icon: "mdi-salesforce",
-    formFields: [
-      { name: "clientId", label: "Client ID", type: "text", required: true },
-      {
-        name: "clientSecret",
-        label: "Client Secret",
-        type: "password",
-        required: true,
-      },
-      {
-        name: "refreshToken",
-        label: "Refresh Token",
-        type: "text",
-        required: true,
-      },
-      { name: "startDate", label: "Start Date", type: "date", required: true },
-      {
-        name: "isSandbox",
-        label: "Is Sandbox?",
-        type: "checkbox",
-        required: false,
-      },
-    ],
-  },
 };
 
 export const getSourceConfig = (sourceType, credentials) => {
@@ -147,14 +119,6 @@ export const getSourceConfig = (sourceType, credentials) => {
       username: credentials.username,
       password: credentials.password,
       ssl: false,
-    },
-    [SOURCE_TYPES.SALESFORCE]: {
-      sourceType: "salesforce",
-      client_id: credentials.clientId,
-      client_secret: credentials.clientSecret,
-      refresh_token: credentials.refreshToken,
-      start_date: credentials.startDate,
-      is_sandbox: credentials.isSandbox || false,
     },
   };
 

@@ -377,7 +377,7 @@ async function loadSources() {
 
     // Also load analytics data for stats calculation
     if (!analyticsStore.salesData.length) {
-      await analyticsStore.fetchData();
+      await analyticsStore.fetchSalesData();
     }
   } catch (err) {
     notify.error("Could not load data sources", {

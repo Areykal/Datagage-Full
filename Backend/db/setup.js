@@ -26,6 +26,14 @@ const pool = new Pool({
  * Verify database connection and create database if it doesn't exist
  */
 async function verifyConnection() {
+  console.log("Using database configuration:", {
+    host: process.env.DB_HOST || "localhost",
+    database: "postgres", // Initial connection to postgres database
+    dbTarget: process.env.DB_NAME, // Target database we'll be connecting to
+    user: process.env.DB_USER,
+    port: process.env.DB_PORT || 5432
+  });
+
   const client = new pg.Client({
     host: process.env.DB_HOST || "localhost",
     database: "postgres", // Connect to default postgres database first
@@ -40,6 +48,7 @@ async function verifyConnection() {
 
     // Check if our target database exists
     const dbName = process.env.DB_NAME;
+    console.log(`Checking if database '${dbName}' exists...`);
     const result = await client.query(
       "SELECT 1 FROM pg_database WHERE datname = $1",
       [dbName]

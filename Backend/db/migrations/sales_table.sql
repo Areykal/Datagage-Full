@@ -68,29 +68,61 @@ BEGIN
         RAISE NOTICE 'Added quantity column to existing sales table';
       END IF;
     END $COLS$;
-    
-    -- Create indexes if they don't exist
+      -- Create indexes if they don't exist, but first check if the columns exist
     DO $INDEXES$
+    DECLARE
+      date_column_name TEXT;
     BEGIN
-      IF NOT EXISTS (
-        SELECT FROM pg_indexes 
-        WHERE schemaname = 'public' AND tablename = 'sales' AND indexname = 'idx_sales_date'
-      ) THEN
-        CREATE INDEX idx_sales_date ON sales(sale_date);
+      -- First determine which date column exists in the table
+      SELECT column_name INTO date_column_name
+      FROM information_schema.columns 
+      WHERE table_schema = 'public' AND table_name = 'sales' 
+      AND column_name IN ('sale_date', 'order_date', 'transaction_date', 'date')
+      LIMIT 1;
+      
+      IF date_column_name IS NOT NULL THEN
+        IF NOT EXISTS (
+          SELECT FROM pg_indexes 
+          WHERE schemaname = 'public' AND tablename = 'sales' AND indexname = 'idx_sales_date'
+        ) THEN
+          EXECUTE format('CREATE INDEX idx_sales_date ON sales(%I)', date_column_name);
+          RAISE NOTICE 'Created date index on column %', date_column_name;
+        END IF;
+      ELSE
+        RAISE NOTICE 'No suitable date column found for indexing';
       END IF;
       
-      IF NOT EXISTS (
+      -- Check if product column exists
+      IF EXISTS (
+        SELECT FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'sales' AND column_name = 'product'
+      ) AND NOT EXISTS (
         SELECT FROM pg_indexes 
         WHERE schemaname = 'public' AND tablename = 'sales' AND indexname = 'idx_sales_product'
       ) THEN
         CREATE INDEX idx_sales_product ON sales(product);
+        RAISE NOTICE 'Created product index';
       END IF;
       
-      IF NOT EXISTS (
+      -- Check for various possible customer column names
+      IF EXISTS (
+        SELECT FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'sales' AND column_name = 'customer_name'
+      ) AND NOT EXISTS (
         SELECT FROM pg_indexes 
         WHERE schemaname = 'public' AND tablename = 'sales' AND indexname = 'idx_sales_customer'
       ) THEN
         CREATE INDEX idx_sales_customer ON sales(customer_name);
+        RAISE NOTICE 'Created customer index';
+      ELSIF EXISTS (
+        SELECT FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'sales' AND column_name = 'customer'
+      ) AND NOT EXISTS (
+        SELECT FROM pg_indexes 
+        WHERE schemaname = 'public' AND tablename = 'sales' AND indexname = 'idx_sales_customer'
+      ) THEN
+        CREATE INDEX idx_sales_customer ON sales(customer);
+        RAISE NOTICE 'Created customer index';
       END IF;
     END $INDEXES$;
     

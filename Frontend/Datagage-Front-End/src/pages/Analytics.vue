@@ -279,13 +279,18 @@ const productOptions = computed(() => {
   return Array.from(products);
 });
 
-// Compute customer options (this would come from actual data in a real app)
-const customerOptions = computed(() => [
-  "all",
-  "Lauren Smith",
-  "John Mason",
-  "Thomas Melton",
-]);
+// Compute customer options from available data
+const customerOptions = computed(() => {
+  const customers = new Set(["all"]);
+  if (analytics.salesData?.length) {
+    analytics.salesData.forEach((item) => {
+      // Check for both "customer" and "customer_name" fields to handle possible inconsistencies
+      const customerName = item.customer || item.customer_name || null;
+      if (customerName) customers.add(customerName);
+    });
+  }
+  return Array.from(customers);
+});
 
 // Computed statistics
 const totalRecords = computed(() => {
@@ -303,11 +308,11 @@ const lastSync = computed(() => {
 
 const fetchFilteredData = async (forceRefresh = false) => {
   try {
-    // Show loading state
-    loading.value = true;
-
+    // Don't set loading state here as it's a computed property from the store
+    // The store will handle setting its own loading state
+    
     // Update filters in the store and fetch data
-    await analytics.fetchSalesData(
+    const result = await analytics.fetchSalesData(
       {
         timeRange: months.value,
         product: selectedProduct.value,
@@ -316,8 +321,16 @@ const fetchFilteredData = async (forceRefresh = false) => {
       forceRefresh
     );
 
-    // Generate new insights based on filtered data
-    refreshInsights();
+    // Only generate new insights if explicitly requested via the refresh button
+    // This prevents API calls that might fail during regular filter changes
+    if (forceRefresh && result && result.length > 0) {
+      try {
+        await refreshInsights();
+      } catch (insightErr) {
+        // If insight generation fails, we still want to show the filtered data
+        console.error("Failed to refresh insights, but data was filtered:", insightErr);
+      }
+    }
 
     if (forceRefresh) {
       notify.success("Analytics data refreshed");
@@ -330,12 +343,17 @@ const fetchFilteredData = async (forceRefresh = false) => {
 
 const refreshInsights = async () => {
   try {
+    if (!analytics.salesData?.length) {
+      notify.warning("No data available to generate insights");
+      return;
+    }
+    
     insightsLoading.value = true;
     await analytics.generateInsights();
     notify.success("AI insights updated based on current filters");
   } catch (err) {
-    notify.error("Failed to generate insights");
-    console.error(err);
+    notify.error("Failed to generate insights: " + (err.message || "Unknown error"));
+    console.error("Insight generation error:", err);
   } finally {
     insightsLoading.value = false;
   }
@@ -343,13 +361,20 @@ const refreshInsights = async () => {
 
 const generateProductInsights = async (productData) => {
   try {
+    if (!productData || productData.length === 0) {
+      notify.warning("No product data available to generate insights");
+      return;
+    }
+    
     insightsLoading.value = true;
 
     // Generate insights for specific product data
     const productInsights = await analytics.generateInsights(productData);
+    notify.success("Product insights generated successfully");
+    return productInsights;
   } catch (err) {
-    notify.error("Failed to generate product insights");
-    console.error(err);
+    notify.error("Failed to generate product insights: " + (err.message || "Unknown error"));
+    console.error("Product insight generation error:", err);
   } finally {
     insightsLoading.value = false;
   }
@@ -388,7 +413,14 @@ const downloadData = () => {
   }
 };
 
-onMounted(() => fetchFilteredData());
+onMounted(async () => {
+  try {
+    await fetchFilteredData();
+  } catch (err) {
+    notify.error("Failed to load initial analytics data. Please try refreshing the page.");
+    console.error("Error loading initial analytics data:", err);
+  }
+});
 </script>
 
 <style scoped>

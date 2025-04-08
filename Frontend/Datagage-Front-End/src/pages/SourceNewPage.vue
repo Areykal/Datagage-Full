@@ -7,16 +7,38 @@
     showBack
   >
     <v-stepper v-model="currentStep" class="source-stepper">
-      <v-stepper-header>
-        <v-stepper-item
-          v-for="(step, i) in steps"
-          :key="i"
-          :value="i + 1"
-          :complete="currentStep > i + 1"
-        >
-          {{ step }}
-        </v-stepper-item>
+      <v-stepper-header class="stepper-header">
+        <template v-for="(step, i) in steps" :key="i">
+          <v-stepper-item
+            :value="i + 1"
+            :complete="currentStep > i + 1"
+            :class="currentStep === i + 1 ? 'active-step' : ''"
+          >
+            <template v-slot:title>
+              <span class="stepper-title">{{ step }}</span>
+            </template>
+            <template v-slot:icon>
+              <template v-if="currentStep > i + 1">
+                <v-icon>mdi-check</v-icon>
+              </template>
+              <template v-else>
+                {{ i + 1 }}
+              </template>
+            </template>
+          </v-stepper-item>
+          <v-divider v-if="i < steps.length - 1"></v-divider>
+        </template>
       </v-stepper-header>
+
+      <div class="step-progress-container">
+        <div class="step-progress-bar">
+          <div 
+            class="step-progress-fill" 
+            :style="{ width: `${((currentStep - 1) / (steps.length - 1)) * 100}%` }"
+          ></div>
+        </div>
+        <div class="step-counter">Step {{ currentStep }} of {{ steps.length }}</div>
+      </div>
 
       <v-stepper-window>
         <!-- Step 1: Select Source Type -->
@@ -49,20 +71,36 @@
                     :class="{ selected: sourceType === type.type }"
                     @click="selectSourceType(type.type)"
                   >
-                    <v-card-item class="d-flex flex-column align-center">
-                      <v-icon
-                        size="48"
+                    <div class="source-type-shimmer"></div>
+                    <v-card-item class="d-flex flex-column align-center position-relative">
+                      <div class="selection-indicator" v-if="sourceType === type.type">
+                        <v-icon color="primary">mdi-check-circle</v-icon>
+                      </div>
+                      <v-avatar
                         color="primary"
-                        class="mb-3 source-icon"
-                        >{{ getSourceIcon(type.type) }}</v-icon
+                        variant="tonal"
+                        size="64"
+                        class="mb-4 source-icon"
                       >
-                      <v-card-title class="text-center">{{
-                        type.name
-                      }}</v-card-title>
+                        <v-icon size="32">{{ getSourceIcon(type.type) }}</v-icon>
+                      </v-avatar>
+                      <v-card-title class="text-center source-type-title">
+                        {{ type.name }}
+                      </v-card-title>
                     </v-card-item>
-                    <v-card-text class="text-center">
+                    <v-card-text class="text-center source-type-description">
                       {{ type.description }}
                     </v-card-text>
+                    <v-card-actions class="source-type-actions">
+                      <v-btn
+                        block
+                        :color="sourceType === type.type ? 'primary' : ''"
+                        :variant="sourceType === type.type ? 'flat' : 'text'"
+                        class="select-btn"
+                      >
+                        {{ sourceType === type.type ? 'Selected' : 'Select' }}
+                      </v-btn>
+                    </v-card-actions>
                   </v-card>
                 </v-col>
               </v-row>
@@ -90,6 +128,17 @@
               {{ getSourceTypeName(sourceType) }} Connection</v-card-title
             >
             <v-card-text>
+              <v-alert
+                color="info"
+                variant="tonal"
+                class="mb-6 source-info"
+                density="compact"
+                border="start"
+                :title="getSourceInstructions(sourceType).title"
+              >
+                {{ getSourceInstructions(sourceType).description }}
+              </v-alert>
+              
               <v-form ref="connectionForm" v-model="formValid">
                 <!-- Source Name (common to all source types) -->
                 <v-row>
@@ -101,144 +150,235 @@
                       variant="outlined"
                       :rules="[(v) => !!v || 'Name is required']"
                       :error-messages="formErrors.name"
+                      prepend-inner-icon="mdi-tag-outline"
+                      hint="A descriptive name to identify this data source"
+                      persistent-hint
                     ></v-text-field>
                   </v-col>
                 </v-row>
 
+                <v-divider class="my-4"></v-divider>
+
                 <!-- MySQL Configuration -->
-                <div v-if="sourceType === 'mysql'">
+                <div v-if="sourceType === 'mysql'" class="form-section">
+                  <h3 class="text-h6 mb-4">MySQL Database Connection</h3>
                   <v-row>
                     <v-col cols="12" md="6">
-                      <v-text-field
-                        v-model="connectionConfig.host"
-                        label="Host"
-                        placeholder="localhost or IP address"
-                        variant="outlined"
-                        :rules="[(v) => !!v || 'Host is required']"
-                        :error-messages="formErrors.host"
-                      ></v-text-field>
+                      <v-tooltip :text="getFieldTooltip('mysql', 'host')" location="top" open-delay="300">
+                        <template v-slot:activator="{ props }">
+                          <v-text-field
+                            v-bind="props"
+                            v-model="connectionConfig.host"
+                            label="Host"
+                            placeholder="localhost or IP address"
+                            variant="outlined"
+                            :rules="[(v) => !!v || 'Host is required']"
+                            :error-messages="formErrors.host"
+                            prepend-inner-icon="mdi-server"
+                          ></v-text-field>
+                        </template>
+                      </v-tooltip>
                     </v-col>
                     <v-col cols="12" md="6">
-                      <v-text-field
-                        v-model="connectionConfig.port"
-                        label="Port"
-                        placeholder="3306"
-                        type="number"
-                        variant="outlined"
-                        :rules="[(v) => !!v || 'Port is required']"
-                        :error-messages="formErrors.port"
-                      ></v-text-field>
+                      <v-tooltip :text="getFieldTooltip('mysql', 'port')" location="top" open-delay="300">
+                        <template v-slot:activator="{ props }">
+                          <v-text-field
+                            v-bind="props"
+                            v-model="connectionConfig.port"
+                            label="Port"
+                            placeholder="3306"
+                            type="number"
+                            variant="outlined"
+                            :rules="[(v) => !!v || 'Port is required']"
+                            :error-messages="formErrors.port"
+                            prepend-inner-icon="mdi-ethernet"
+                          ></v-text-field>
+                        </template>
+                      </v-tooltip>
                     </v-col>
                     <v-col cols="12" md="6">
-                      <v-text-field
-                        v-model="connectionConfig.database"
-                        label="Database Name"
-                        placeholder="my_database"
-                        variant="outlined"
-                        :rules="[(v) => !!v || 'Database name is required']"
-                        :error-messages="formErrors.database"
-                      ></v-text-field>
+                      <v-tooltip :text="getFieldTooltip('mysql', 'database')" location="top" open-delay="300">
+                        <template v-slot:activator="{ props }">
+                          <v-text-field
+                            v-bind="props"
+                            v-model="connectionConfig.database"
+                            label="Database Name"
+                            placeholder="my_database"
+                            variant="outlined"
+                            :rules="[(v) => !!v || 'Database name is required']"
+                            :error-messages="formErrors.database"
+                            prepend-inner-icon="mdi-database"
+                          ></v-text-field>
+                        </template>
+                      </v-tooltip>
                     </v-col>
                     <v-col cols="12" md="6">
-                      <v-text-field
-                        v-model="connectionConfig.username"
-                        label="Username"
-                        placeholder="db_user"
-                        variant="outlined"
-                        :rules="[(v) => !!v || 'Username is required']"
-                        :error-messages="formErrors.username"
-                      ></v-text-field>
+                      <v-tooltip :text="getFieldTooltip('mysql', 'username')" location="top" open-delay="300">
+                        <template v-slot:activator="{ props }">
+                          <v-text-field
+                            v-bind="props"
+                            v-model="connectionConfig.username"
+                            label="Username"
+                            placeholder="db_user"
+                            variant="outlined"
+                            :rules="[(v) => !!v || 'Username is required']"
+                            :error-messages="formErrors.username"
+                            prepend-inner-icon="mdi-account"
+                          ></v-text-field>
+                        </template>
+                      </v-tooltip>
                     </v-col>
                     <v-col cols="12" md="6">
-                      <v-text-field
-                        v-model="connectionConfig.password"
-                        label="Password"
-                        placeholder="•••••••••••"
-                        type="password"
-                        variant="outlined"
-                        :rules="[(v) => !!v || 'Password is required']"
-                        :error-messages="formErrors.password"
-                      ></v-text-field>
-                    </v-col>
-                  </v-row>
-                </div>
-
-                <!-- PostgreSQL Configuration -->
-                <div v-else-if="sourceType === 'postgres'">
-                  <v-row>
-                    <v-col cols="12" md="6">
-                      <v-text-field
-                        v-model="connectionConfig.host"
-                        label="Host"
-                        placeholder="localhost or IP address"
-                        variant="outlined"
-                        :rules="[(v) => !!v || 'Host is required']"
-                        :error-messages="formErrors.host"
-                      ></v-text-field>
+                      <v-tooltip :text="getFieldTooltip('mysql', 'password')" location="top" open-delay="300">
+                        <template v-slot:activator="{ props }">
+                          <v-text-field
+                            v-bind="props"
+                            v-model="connectionConfig.password"
+                            label="Password"
+                            placeholder="•••••••••••"
+                            type="password"
+                            variant="outlined"
+                            :rules="[(v) => !!v || 'Password is required']"
+                            :error-messages="formErrors.password"
+                            prepend-inner-icon="mdi-key"
+                            :append-inner-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
+                            @click:append-inner="showPassword = !showPassword"
+                            :type="showPassword ? 'text' : 'password'"
+                          ></v-text-field>
+                        </template>
+                      </v-tooltip>
                     </v-col>
                     <v-col cols="12" md="6">
-                      <v-text-field
-                        v-model="connectionConfig.port"
-                        label="Port"
-                        placeholder="5432"
-                        type="number"
-                        variant="outlined"
-                        :rules="[(v) => !!v || 'Port is required']"
-                        :error-messages="formErrors.port"
-                      ></v-text-field>
-                    </v-col>
-                    <v-col cols="12" md="6">
-                      <v-text-field
-                        v-model="connectionConfig.database"
-                        label="Database Name"
-                        placeholder="my_database"
-                        variant="outlined"
-                        :rules="[(v) => !!v || 'Database name is required']"
-                        :error-messages="formErrors.database"
-                      ></v-text-field>
-                    </v-col>
-                    <v-col cols="12" md="6">
-                      <v-text-field
-                        v-model="connectionConfig.username"
-                        label="Username"
-                        placeholder="db_user"
-                        variant="outlined"
-                        :rules="[(v) => !!v || 'Username is required']"
-                        :error-messages="formErrors.username"
-                      ></v-text-field>
-                    </v-col>
-                    <v-col cols="12" md="6">
-                      <v-text-field
-                        v-model="connectionConfig.password"
-                        label="Password"
-                        placeholder="•••••••••••"
-                        type="password"
-                        variant="outlined"
-                        :rules="[(v) => !!v || 'Password is required']"
-                        :error-messages="formErrors.password"
-                      ></v-text-field>
-                    </v-col>
-                    <v-col cols="12" md="6">
-                      <v-checkbox
+                      <v-switch
                         v-model="connectionConfig.sslMode"
-                        label="Enable SSL Mode"
-                      ></v-checkbox>
+                        color="primary"
+                        label="Enable SSL Connection"
+                        hint="Use SSL/TLS for secure connection"
+                        persistent-hint
+                      ></v-switch>
                     </v-col>
                   </v-row>
                 </div>
 
-                <!-- Google Sheets Configuration -->
-                <div v-else-if="sourceType === 'google-sheets'">
+                <!-- PostgreSQL Configuration - Using the same pattern as MySQL but keeping it separate for clarity -->
+                <div v-else-if="sourceType === 'postgres'" class="form-section">
+                  <h3 class="text-h6 mb-4">PostgreSQL Database Connection</h3>
                   <v-row>
                     <v-col cols="12" md="6">
-                      <v-text-field
-                        v-model="connectionConfig.spreadsheetId"
-                        label="Spreadsheet ID or URL"
-                        placeholder="Find in the URL of your sheet"
-                        variant="outlined"
-                        :rules="[(v) => !!v || 'Spreadsheet ID is required']"
-                        :error-messages="formErrors.spreadsheetId"
-                      ></v-text-field>
+                      <v-tooltip :text="getFieldTooltip('postgres', 'host')" location="top" open-delay="300">
+                        <template v-slot:activator="{ props }">
+                          <v-text-field
+                            v-bind="props"
+                            v-model="connectionConfig.host"
+                            label="Host"
+                            placeholder="localhost or IP address"
+                            variant="outlined"
+                            :rules="[(v) => !!v || 'Host is required']"
+                            :error-messages="formErrors.host"
+                            prepend-inner-icon="mdi-server"
+                          ></v-text-field>
+                        </template>
+                      </v-tooltip>
+                    </v-col>
+                    <v-col cols="12" md="6">
+                      <v-tooltip :text="getFieldTooltip('postgres', 'port')" location="top" open-delay="300">
+                        <template v-slot:activator="{ props }">
+                          <v-text-field
+                            v-bind="props"
+                            v-model="connectionConfig.port"
+                            label="Port"
+                            placeholder="5432"
+                            type="number"
+                            variant="outlined"
+                            :rules="[(v) => !!v || 'Port is required']"
+                            :error-messages="formErrors.port"
+                            prepend-inner-icon="mdi-ethernet"
+                          ></v-text-field>
+                        </template>
+                      </v-tooltip>
+                    </v-col>
+                    <v-col cols="12" md="6">
+                      <v-tooltip :text="getFieldTooltip('postgres', 'database')" location="top" open-delay="300">
+                        <template v-slot:activator="{ props }">
+                          <v-text-field
+                            v-bind="props"
+                            v-model="connectionConfig.database"
+                            label="Database Name"
+                            placeholder="my_database"
+                            variant="outlined"
+                            :rules="[(v) => !!v || 'Database name is required']"
+                            :error-messages="formErrors.database"
+                            prepend-inner-icon="mdi-database"
+                          ></v-text-field>
+                        </template>
+                      </v-tooltip>
+                    </v-col>
+                    <v-col cols="12" md="6">
+                      <v-tooltip :text="getFieldTooltip('postgres', 'username')" location="top" open-delay="300">
+                        <template v-slot:activator="{ props }">
+                          <v-text-field
+                            v-bind="props"
+                            v-model="connectionConfig.username"
+                            label="Username"
+                            placeholder="db_user"
+                            variant="outlined"
+                            :rules="[(v) => !!v || 'Username is required']"
+                            :error-messages="formErrors.username"
+                            prepend-inner-icon="mdi-account"
+                          ></v-text-field>
+                        </template>
+                      </v-tooltip>
+                    </v-col>
+                    <v-col cols="12" md="6">
+                      <v-tooltip :text="getFieldTooltip('postgres', 'password')" location="top" open-delay="300">
+                        <template v-slot:activator="{ props }">
+                          <v-text-field
+                            v-bind="props"
+                            v-model="connectionConfig.password"
+                            label="Password"
+                            placeholder="•••••••••••"
+                            type="password"
+                            variant="outlined"
+                            :rules="[(v) => !!v || 'Password is required']"
+                            :error-messages="formErrors.password"
+                            prepend-inner-icon="mdi-key"
+                            :append-inner-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
+                            @click:append-inner="showPassword = !showPassword"
+                            :type="showPassword ? 'text' : 'password'"
+                          ></v-text-field>
+                        </template>
+                      </v-tooltip>
+                    </v-col>
+                    <v-col cols="12" md="6">
+                      <v-switch
+                        v-model="connectionConfig.sslMode"
+                        color="primary"
+                        label="Enable SSL Connection"
+                        hint="Use SSL/TLS for secure connection"
+                        persistent-hint
+                      ></v-switch>
+                    </v-col>
+                  </v-row>
+                </div>
+
+                <!-- Google Sheets Configuration - Again following the same enhanced pattern -->
+                <div v-else-if="sourceType === 'google-sheets'" class="form-section">
+                  <h3 class="text-h6 mb-4">Google Sheets Connection</h3>
+                  <v-row>
+                    <v-col cols="12" md="6">
+                      <v-tooltip :text="getFieldTooltip('google-sheets', 'spreadsheetId')" location="top" open-delay="300">
+                        <template v-slot:activator="{ props }">
+                          <v-text-field
+                            v-bind="props"
+                            v-model="connectionConfig.spreadsheetId"
+                            label="Spreadsheet ID or URL"
+                            placeholder="Find in the URL of your sheet"
+                            variant="outlined"
+                            :rules="[(v) => !!v || 'Spreadsheet ID is required']"
+                            :error-messages="formErrors.spreadsheetId"
+                          ></v-text-field>
+                        </template>
+                      </v-tooltip>
                     </v-col>
                     <v-col cols="12">
                       <v-file-input
@@ -252,8 +392,9 @@
                   </v-row>
                 </div>
 
-                <!-- CSV File Configuration -->
-                <div v-else-if="sourceType === 'file'">
+                <!-- CSV File Configuration - Again following the same enhanced pattern -->
+                <div v-else-if="sourceType === 'file'" class="form-section">
+                  <h3 class="text-h6 mb-4">CSV File Upload</h3>
                   <v-row>
                     <v-col cols="12">
                       <v-file-input
@@ -266,14 +407,19 @@
                       ></v-file-input>
                     </v-col>
                     <v-col cols="12" md="6">
-                      <v-text-field
-                        v-model="connectionConfig.datasetName"
-                        label="Dataset Name"
-                        placeholder="Name for this dataset"
-                        variant="outlined"
-                        :rules="[(v) => !!v || 'Dataset name is required']"
-                        :error-messages="formErrors.datasetName"
-                      ></v-text-field>
+                      <v-tooltip :text="getFieldTooltip('file', 'datasetName')" location="top" open-delay="300">
+                        <template v-slot:activator="{ props }">
+                          <v-text-field
+                            v-bind="props"
+                            v-model="connectionConfig.datasetName"
+                            label="Dataset Name"
+                            placeholder="Name for this dataset"
+                            variant="outlined"
+                            :rules="[(v) => !!v || 'Dataset name is required']"
+                            :error-messages="formErrors.datasetName"
+                          ></v-text-field>
+                        </template>
+                      </v-tooltip>
                     </v-col>
                     <v-col cols="12" md="6">
                       <v-checkbox
@@ -322,42 +468,74 @@
           <v-card class="mb-6">
             <v-card-title>Review and Save</v-card-title>
             <v-card-text>
-              <v-alert color="info" variant="tonal" class="mb-6">
-                Please review your connection details before saving.
+              <v-alert 
+                color="info" 
+                variant="tonal" 
+                class="mb-6 source-info"
+                density="comfortable"
+                icon="mdi-information-outline"
+              >
+                Please verify your connection details before saving. You can go back to make changes if needed.
               </v-alert>
 
-              <h3 class="text-h6 mb-4">{{ getSourceTypeName(sourceType) }} Connection</h3>
+              <div class="review-section">
+                <div class="d-flex align-center mb-6">
+                  <v-avatar
+                    color="primary"
+                    variant="tonal"
+                    size="64"
+                    class="mr-4 source-avatar"
+                  >
+                    <v-icon size="32">{{ getSourceIcon(sourceType) }}</v-icon>
+                  </v-avatar>
+                  <div>
+                    <h2 class="text-h5">{{ connectionConfig.name }}</h2>
+                    <div class="text-subtitle-1 text-medium-emphasis">{{ getSourceTypeName(sourceType) }} Connection</div>
+                  </div>
+                </div>
 
-              <v-list>
-                <v-list-item>
-                  <v-list-item-title>Source Name</v-list-item-title>
-                  <v-list-item-subtitle>{{ connectionConfig.name }}</v-list-item-subtitle>
-                </v-list-item>
+                <v-divider class="mb-4"></v-divider>
 
-                <!-- Dynamic connection details based on source type -->
-                <template v-for="(value, key) in connectionConfigDisplay" :key="key">
-                  <v-list-item v-if="value !== null && key !== 'name'">
-                    <v-list-item-title>{{ formatLabel(key) }}</v-list-item-title>
-                    <v-list-item-subtitle>{{ formatValue(key, value) }}</v-list-item-subtitle>
-                  </v-list-item>
-                </template>
-              </v-list>
+                <h3 class="text-h6 mb-3">Connection Details</h3>
+              
+                <v-list class="review-list">
+                  <template v-for="(value, key) in connectionConfigDisplay" :key="key">
+                    <v-list-item v-if="value !== null && key !== 'name'" class="review-item mb-2">
+                      <template v-slot:prepend>
+                        <v-avatar size="36" color="primary" variant="tonal" class="mr-3">
+                          <v-icon size="20">{{ getFieldIcon(key) }}</v-icon>
+                        </v-avatar>
+                      </template>
+                      <v-list-item-title class="review-item-label">{{ formatLabel(key) }}</v-list-item-title>
+                      <v-list-item-subtitle class="review-item-value">{{ formatValue(key, value) }}</v-list-item-subtitle>
+                    </v-list-item>
+                  </template>
+                </v-list>
+
+                <v-divider class="my-6"></v-divider>
+                
+                <div class="d-flex align-center">
+                  <v-icon color="warning" class="mr-2">mdi-alert-circle-outline</v-icon>
+                  <span class="text-caption">After creating this source, Datagage will automatically sync the data at regular intervals.</span>
+                </div>
+              </div>
             </v-card-text>
 
             <v-card-actions class="pa-4">
-              <v-btn variant="text" @click="prevStep">
+              <v-btn variant="text" @click="prevStep" :disabled="saving">
                 <v-icon start>mdi-arrow-left</v-icon>
-                Back
+                Edit Details
               </v-btn>
               <v-spacer></v-spacer>
               <v-btn
                 color="primary"
+                size="large"
                 @click="saveSource"
                 :loading="saving"
                 :disabled="saving"
               >
                 <v-icon start>mdi-check</v-icon>
-                Save Source
+                Create Data Source
               </v-btn>
             </v-card-actions>
           </v-card>
@@ -387,13 +565,7 @@ const currentStep = ref(1);
 const steps = ['Source Type', 'Configure', 'Review & Save'];
 
 // Source types and selection
-const sourceTypes = ref([
-  { type: 'mysql', name: 'MySQL', description: 'Connect to a MySQL database' },
-  { type: 'postgres', name: 'PostgreSQL', description: 'Connect to a PostgreSQL database' },
-  { type: 'google-sheets', name: 'Google Sheets', description: 'Import data from Google Sheets' },
-  { type: 'file', name: 'CSV File', description: 'Upload and import CSV files' }
-]);
-
+const sourceTypes = ref([]);
 const sourceType = ref(null);
 const connectionConfig = ref({
   name: '',
@@ -448,6 +620,81 @@ const getSourceIcon = (type) => {
     'file': 'mdi-file-delimited',
   };
   return icons[type] || 'mdi-database';
+};
+
+// Password visibility toggle
+const showPassword = ref(false);
+
+// Source-specific instructions
+const getSourceInstructions = (type) => {
+  const instructions = {
+    'mysql': {
+      title: 'Connect to MySQL Database',
+      description: 'Enter your MySQL database credentials below. You\'ll need a user with at least read access to the database.'
+    },
+    'postgres': {
+      title: 'Connect to PostgreSQL Database',
+      description: 'Enter your PostgreSQL database credentials below. Make sure the database user has appropriate permissions.'
+    },
+    'google-sheets': {
+      title: 'Google Sheets Connection',
+      description: 'You\'ll need a Google service account with access to the spreadsheet and its JSON credentials.'
+    },
+    'file': {
+      title: 'CSV File Upload',
+      description: 'Upload a CSV file to import data. Make sure it\'s properly formatted with consistent columns.'
+    }
+  };
+  return instructions[type] || { title: 'Configure Connection', description: 'Enter the connection details below.' };
+};
+
+// Field tooltips
+const getFieldTooltip = (sourceType, fieldName) => {
+  const tooltips = {
+    'mysql': {
+      'host': 'The hostname or IP address of your MySQL server',
+      'port': 'The port your MySQL server is running on (default: 3306)',
+      'database': 'The name of the database you want to connect to',
+      'username': 'The username to authenticate with your MySQL server',
+      'password': 'The password for authentication'
+    },
+    'postgres': {
+      'host': 'The hostname or IP address of your PostgreSQL server',
+      'port': 'The port your PostgreSQL server is running on (default: 5432)',
+      'database': 'The name of the database you want to connect to',
+      'username': 'The username to authenticate with your PostgreSQL server',
+      'password': 'The password for authentication'
+    },
+    'google-sheets': {
+      'spreadsheetId': 'The ID of your Google Sheet (found in the URL)'
+    },
+    'file': {
+      'datasetName': 'A name for this dataset to identify it in Datagage'
+    }
+  };
+  
+  if (tooltips[sourceType] && tooltips[sourceType][fieldName]) {
+    return tooltips[sourceType][fieldName];
+  }
+  return '';
+};
+
+// Field icon mapping
+const getFieldIcon = (key) => {
+  const icons = {
+    host: 'mdi-server',
+    port: 'mdi-ethernet',
+    database: 'mdi-database',
+    username: 'mdi-account',
+    password: 'mdi-key',
+    spreadsheetId: 'mdi-google-spreadsheet',
+    datasetName: 'mdi-label',
+    csvFile: 'mdi-file-delimited',
+    credentials: 'mdi-key-variant',
+    sslMode: 'mdi-shield-lock',
+    hasHeaderRow: 'mdi-format-header-1'
+  };
+  return icons[key] || 'mdi-cog-outline';
 };
 
 // Step navigation
@@ -532,52 +779,130 @@ const saveSource = async () => {
 };
 
 // Initialize component
-onMounted(() => {
-  // In a real app, we would fetch source types from the API
-  loading.value = false;
+onMounted(async () => {
+  loading.value = true;
+  error.value = null;
+  
+  try {
+    // Fetch source types from the API
+    sourceTypes.value = await sourceService.getSourceTypes();
+    
+    if (!sourceTypes.value || sourceTypes.value.length === 0) {
+      error.value = "No source types available";
+    }
+  } catch (err) {
+    error.value = `Failed to load source types: ${err.message}`;
+    notify.error("Failed to load source types", {
+      title: "Error",
+    });
+    console.error("Error fetching source types:", err);
+  } finally {
+    loading.value = false;
+  }
 });
 </script>
 
 <style scoped>
+.active-step :deep(.v-stepper-item__content) {
+  color: var(--v-primary-base) !important;
+  font-weight: 600;
+}
+
+.source-info {
+  background: linear-gradient(to right, rgba(var(--v-theme-info), 0.05), rgba(var(--v-theme-info), 0.02)) !important;
+}
+
+.form-section {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.review-section {
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.review-list {
+  background: transparent !important;
+}
+
+.review-item {
+  border-radius: 8px;
+  margin-bottom: 8px;
+  background: rgba(255, 255, 255, 0.03) !important;
+  transition: all 0.2s ease;
+}
+
+.review-item:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.review-item-label {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.review-item-value {
+  font-weight: 500 !important;
+  font-size: 1rem !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.source-avatar {
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.1)) !important;
+  border: 2px solid rgba(99, 102, 241, 0.3);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
 .source-type-column {
   padding: 8px;
+}
+
+.step-progress-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 16px 0 24px;
+}
+
+.step-progress-bar {
+  width: 100%;
+  max-width: 400px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.step-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--v-primary-base), rgba(99, 102, 241, 0.7));
+  border-radius: 3px;
+  transition: width 0.5s ease-out;
+}
+
+.step-counter {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
 }
 
 .source-type-card {
   cursor: pointer;
   transition: all 0.3s ease;
-}
-
-.source-type-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 4px 25px 0 rgba(0, 0, 0, 0.25) !important;
-}
-
-.source-type-card.selected {
-  border: 2px solid var(--v-primary-base) !important;
-  box-shadow: 0 4px 25px 0 rgba(var(--v-primary-base), 0.25) !important;
-}
-
-.source-icon {
-  transition: transform 0.3s ease;
-}
-
-.source-type-card:hover .source-icon {
-  transform: scale(1.1);
-}
-
-.fade-in {
-  animation: fadeIn 0.5s ease-out;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  background-color: rgba(30, 30, 30, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  position: relative;
+  min-height: 220px; /* Increased height for better spacing */
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px !important;
 }
 </style>
