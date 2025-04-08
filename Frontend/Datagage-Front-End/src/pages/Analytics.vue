@@ -115,8 +115,36 @@
       </v-col>
     </v-row>
 
+    <!-- Revenue Trend Chart -->
+    <div v-if="!loading && analytics.salesData?.length > 0" class="mb-6">
+      <TimeSeriesChart 
+        :data="analytics.salesData" 
+        xKey="month" 
+        yKey="total_revenue" 
+        title="Revenue Trends" 
+        metric="Revenue"
+        :format="(val) => `$${val.toLocaleString()}`"
+      />
+    </div>
+    
+    <!-- User Activity Chart -->
+    <div v-if="!loading && analytics.salesData?.length > 0" class="mb-6">
+      <TimeSeriesChart 
+        :data="analytics.salesData" 
+        xKey="month" 
+        yKey="unique_customers" 
+        title="Customer Engagement" 
+        metric="Unique Customers"
+      />
+    </div>
+
     <!-- Product Analytics Component -->
+    <div v-if="loading" class="text-center pa-4">
+      <v-progress-circular indeterminate color="primary" size="48"></v-progress-circular>
+      <div class="mt-3">Loading analytics data...</div>
+    </div>
     <ProductAnalytics
+      v-else
       :data="analytics.salesData || []"
       class="mb-6"
       @generate-product-insights="generateProductInsights"
@@ -231,6 +259,8 @@ import { useAnalyticsStore } from "@/stores/analyticsStore";
 import PageLayout from "@/components/PageLayout.vue";
 import { notify } from "@/utils/notifications";
 import ProductAnalytics from "@/components/ProductAnalytics.vue";
+import TimeSeriesChart from "@/components/TimeSeriesChart.vue";
+import analyticsService from "@/services/analyticsService";
 
 const analytics = useAnalyticsStore();
 const months = ref(12);
@@ -349,8 +379,11 @@ const refreshInsights = async () => {
     }
     
     insightsLoading.value = true;
-    await analytics.generateInsights();
-    notify.success("AI insights updated based on current filters");
+    const result = await analytics.generateInsights();
+    
+    if (result) {
+      notify.success("AI insights updated based on current filters");
+    }
   } catch (err) {
     notify.error("Failed to generate insights: " + (err.message || "Unknown error"));
     console.error("Insight generation error:", err);
@@ -387,29 +420,39 @@ const downloadData = () => {
       return;
     }
 
-    // Create CSV content
-    const headers = Object.keys(analytics.salesData[0]).join(",");
-    const rows = analytics.salesData
-      .map((item) => Object.values(item).join(","))
-      .join("\n");
-    const csvContent = `${headers}\n${rows}`;
+    // Use the enhanced CSV export function from the analytics service
+    const csvContent = analyticsService.exportToCsv(analytics.salesData);
+    
+    // Generate a descriptive filename with filters
+    const dateStr = new Date().toISOString().split('T')[0];
+    let filename = `datagage_analytics_${dateStr}`;
+    
+    // Add filter information to filename
+    if (selectedProduct.value !== 'all') {
+      filename += `_${selectedProduct.value}`;
+    }
+    if (selectedCustomer.value !== 'all') {
+      filename += `_${selectedCustomer.value}`;
+    }
+    filename += `.csv`;
 
     // Create blob and download link
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `datagage_analytics_${
-      new Date().toISOString().split("T")[0]
-    }.csv`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    
+    // Clean up the URL object
+    setTimeout(() => URL.revokeObjectURL(url), 100);
 
     notify.success("Data exported successfully");
   } catch (error) {
-    notify.error("Failed to export data");
-    console.error(error);
+    notify.error("Failed to export data: " + error.message);
+    console.error("Export error:", error);
   }
 };
 

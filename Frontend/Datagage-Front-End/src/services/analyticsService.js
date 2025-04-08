@@ -66,6 +66,82 @@ export const analyticsService = {
       );
     }
   },
+  
+  /**
+   * Get Metabase dashboard URL for embedding
+   * @returns {Promise<Object>} Object containing the Metabase URL
+   */
+  async getMetabaseUrl() {
+    try {
+      const response = await apiClient.get('/api/metabase/dashboard-url');
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching Metabase URL:", error);
+      throw new Error(
+        error.response?.data?.error || "Failed to fetch Metabase dashboard URL"
+      );
+    }
+  },
+  
+  /**
+   * Export analytics data to CSV format
+   * @param {Array} data - The data to export
+   * @returns {string} CSV content
+   */
+  exportToCsv(data) {
+    if (!data || !data.length) {
+      throw new Error("No data to export");
+    }
+    
+    // Get headers from first row
+    const headers = Object.keys(data[0]);
+    
+    // Convert data to CSV format
+    const csvRows = [];
+    
+    // Add headers
+    csvRows.push(headers.join(','));
+    
+    // Add data rows
+    for (const row of data) {
+      const values = headers.map(header => {
+        const value = row[header];
+        // Handle values that contain commas or quotes
+        if (value === null || value === undefined) {
+          return '';
+        }
+        const valueStr = String(value);
+        if (valueStr.includes(',') || valueStr.includes('"') || valueStr.includes('\n')) {
+          // Escape quotes and wrap in quotes
+          return `"${valueStr.replace(/"/g, '""')}"`;
+        }
+        return valueStr;
+      });
+      csvRows.push(values.join(','));
+    }
+    
+    return csvRows.join('\n');
+  },
+  
+  /**
+   * Get trends data for time series analysis
+   * @param {number} timeRange - Time range in months
+   * @param {string} metric - Metric to analyze ('revenue', 'orders', 'customers')
+   * @returns {Promise<Array>} Trend data
+   */
+  async getTrendData(timeRange = 12, metric = 'revenue') {
+    try {
+      const response = await apiClient.get(
+        `/api/analytics/trends?timeRange=${timeRange}&metric=${metric}`
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching trend data:", error);
+      throw new Error(
+        error.response?.data?.error || "Failed to fetch trend data"
+      );
+    }
+  }
 };
 
 export default analyticsService;

@@ -142,7 +142,21 @@ BEGIN
   END IF;
 END $$;
 
--- Ensure sequence is up-to-date
-SELECT setval('sales_order_id_seq', COALESCE((SELECT MAX(order_id) FROM sales), 0) + 1, false);
+-- Ensure sequence is up-to-date (if order_id exists)
+DO $$ 
+BEGIN
+  -- Only update sequence if order_id column exists and it uses a sequence
+  IF EXISTS (
+    SELECT FROM information_schema.columns 
+    WHERE table_schema = 'public' AND table_name = 'sales' AND column_name = 'order_id'
+  ) AND EXISTS (
+    SELECT FROM pg_sequences WHERE sequencename = 'sales_order_id_seq'
+  ) THEN
+    EXECUTE 'SELECT setval(''sales_order_id_seq'', COALESCE((SELECT MAX(order_id) FROM sales), 0) + 1, false)';
+    RAISE NOTICE 'Updated sales_order_id_seq sequence';
+  ELSE
+    RAISE NOTICE 'Either order_id column or sales_order_id_seq does not exist, skipping sequence update';
+  END IF;
+END $$;
 
 COMMIT;
